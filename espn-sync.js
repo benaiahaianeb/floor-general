@@ -7,7 +7,7 @@
   var NAMES = "aaron jones|aaron rodgers|adam trautman|adonai mitchell|aj barner|aj brown|alec pierce|alvin kamara|amonra st brown|andrei iosivas|antonio williams|ashton dulin|ashton jeanty|austin hooper|baker mayfield|ben sims|bhayshul tuten|bijan robinson|blake corum|blake grupe|bo nix|braelon allen|brandon aubrey|breece hall|brenton strange|brian robinson|brian thomas|brock bowers|brock purdy|brock wright|bryce lance|bryce young|bub means|bucky irving|cade otton|cairo santos|caleb douglas|caleb williams|calvin austin|calvin ridley|cam little|cam skattebo|cam ward|cameron dicker|carnell tate|cedric tillman|ceedee lamb|charlie kolar|charlie smyth|chase brown|chase mclaughlin|chig okonkwo|chimere dike|chris bell|chris brazzell|chris godwin|chris olave|chris rodriguez|christian kirk|christian mccaffrey|christian watson|chuba hubbard|cj stroud|colby parkinson|cole kmet|colston loveland|cooper kupp|courtland sutton|cyrus allen|dak prescott|dallas goedert|dalton kincaid|dalton schultz|dandre swift|daniel bellinger|daniel jones|darius slayton|darnell mooney|darnell washington|davante adams|david montgomery|david njoku|davis allen|davis mills|dawson knox|deebo samuel|demarcus robinson|demario douglas|denzel boston|derrick henry|devaughn vele|devon achane|devonta smith|dezhaun stribling|dj moore|dk metcalf|dontayvion wicks|donte thornton|drake london|drake maye|dyami brown|dylan sampson|eddy pineiro|eli stowers|elic ayomanor|elijah arroyo|elijah higgins|elijah sarratt|emeka egbuka|emmett johnson|erick all|evan engram|evan mcpherson|fernando mendoza|garrett wilson|geno smith|george kittle|george pickens|germie bernard|greg dulcich|gunnar helm|harold fannin|harrison butker|harrison mevis|hollywood brown|hunter henry|isaac teslaa|isaiah likely|isiah pacheco|jack bech|jacoby brissett|jacory croskeymerritt|jadarian price|jahan dotson|jahdae walker|jahmyr gibbs|jake bates|jake ferguson|jake tonges|jakobi lane|jakobi meyers|jalen coker|jalen hurts|jalen mcmillan|jalen nailor|jalen tolbert|jamarr chase|james cook|jameson williams|jared goff|jason myers|jason sanders|jatavion sanders|jauan jennings|javonte williams|jaxon smithnjigba|jaxson dart|jayden daniels|jayden higgins|jayden reed|jaydon blue|jaylen waddle|jaylen warren|jaylin lane|jaylin noel|jeremiyah love|jeremy ruckert|jerry jeudy|jj mccarthy|jk dobbins|joe burrow|joe flacco|john bates|john metchie|jonah coleman|jonathan taylor|jonathon brooks|jordan addison|jordan love|jordan mason|jordan whittington|jordyn tyson|josh allen|josh downs|josh jacobs|josh oliver|joshua palmer|julian hill|justin fields|justin herbert|justin jefferson|juwan johnson|kaelon black|kaimi fairbairn|kalif raymond|kavontae turpin|kayshon boutte|kc concepcion|keaton mitchell|keenan allen|kendrick bourne|kenneth walker|kenny gainwell|kenyon sadiq|keon coleman|khalil shakir|kirk cousins|kyle monangai|kyle pitts|kyler murray|kyren williams|ladd mcconkey|lamar jackson|luke mccaffrey|luke musgrave|luther burden|mac jones|mack hollins|makai lemon|malachi fields|malik nabers|malik washington|malik willis|marcus mariota|mark andrews|marlin klein|marshawn lloyd|marvin harrison|marvin mims|mason taylor|matthew golden|matthew stafford|michael mayer|michael penix|michael pittman|michael wilson|mike evans|mike gesicki|mike washington|n folk|nick westbrookikhine|nico collins|noah fant|noah gray|olamide zaccheaus|omar cooper|omarion hampton|oronde gadsden|parker washington|pat bryant|pat freiermuth|patrick mahomes|puka nacua|quentin johnston|quinshon judkins|rachaad white|rashee rice|rashid shaheed|rashod bateman|rhamondre stevenson|ricky pearsall|rico dowdle|rj harvey|rome odunze|romeo doubs|ryan flournoy|sam darnold|sam laporta|saquon barkley|savion williams|shedeur sanders|spencer rattler|stefon diggs|tank bigsby|tank dell|ted hurst|tee higgins|terrance ferguson|terry mclaurin|tetairoa mcmillan|theo johnson|theo wease|tj hockenson|tommy tremble|tony pollard|tory horton|travis etienne|travis hunter|travis kelce|tre harris|tre tucker|treveyon henderson|trevor lawrence|trey mcbride|trey smack|treylon burks|troy franklin|tua tagovailoa|tucker kraft|tutu atwell|tyjae spears|tyler allgeier|tyler bass|tyler higbee|tyler loop|tyler shough|tyler warren|tyquan thornton|tyrone tracy|van jefferson|wandale robinson|wil lutz|will kacmarek|will reichard|woody marks|xavier hutchinson|xavier legette|xavier worthy|zach charbonnet|zachariah branch|zay flowers".split("|");
   var NSET = {}; for (var i = 0; i < NAMES.length; i++) NSET[NAMES[i]] = 1;
 
-  var target = null, timer = null, board = null, reverse = false, picking = false, lastSent = "";
+  var target = null, timer = null, board = null, reverse = false, picking = false, lastSent = "", isTable = false;
 
   function norm(s) {
     return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -36,7 +36,7 @@
   box.innerHTML =
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
       "<b style='color:#14568C'>Floor General sync</b><span id='fgX' style='cursor:pointer;color:#6E7681;padding:0 4px'>&times;</span></div>" +
-    "<div id='fgMsg' style='color:#4A515C;margin-bottom:9px'>Click <b>Find picks</b>.</div>" +
+    "<div id='fgMsg' style='color:#4A515C;margin-bottom:9px'>Open the <b>Pick History</b> tab (set it to <b>All Rounds</b>), then click <b>Find picks</b>.</div>" +
     "<div style='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px'>" +
       "<button id='fgAuto'>Find picks</button><button id='fgPick'>Pick manually</button>" +
       "<button id='fgWide'>Widen</button><button id='fgRev'>Reverse</button></div>" +
@@ -54,18 +54,42 @@
     if (!names.length) { say("No player names found in that area. Try <b>Widen</b> or <b>Pick manually</b>.", 1); return 0; }
     if (names.length > MAXPICKS) {
       say("That area has <b>" + names.length + "</b> players - too many to be the pick list. " +
-          "You have probably selected the available-players list. Click <b>Pick manually</b> and click the picks.", 1);
+          "Open the <b>Pick History</b> tab and click <b>Find picks</b> again.", 1);
       return 0;
     }
-    var tail = names.slice(-3).join(", ");
-    say("Found <b>" + names.length + "</b> picks. Most recent: <b>" + tail + "</b>.<br>" +
-        "If that is not the newest pick, click <b>Reverse</b>. Then <b>Start sync</b>.");
+    var first = names.slice(0, 2).join(", "), last = names.slice(-2).join(", ");
+    say((isTable ? "Reading the <b>Pick History</b> table. " : "") +
+        "Found <b>" + names.length + "</b> picks.<br>" +
+        "First: <b>" + first + "</b><br>Last: <b>" + last + "</b><br>" +
+        "The <i>Last</i> names must match the most recent picks. If they are the earliest instead, click <b>Reverse</b>. Then <b>Start sync</b>.");
     return names.length;
   }
 
   /* auto-find: the element with the most known names that isn't the whole page */
-  var MAXPICKS = 70;
+  var MAXPICKS = 200;
+
+  /* ESPN's Pick History is a real table with PICK / PLAYER / TEAM headers.
+     Find it structurally - far more reliable than counting names. */
+  function findPickTable() {
+    var tables = document.querySelectorAll("table");
+    for (var i = 0; i < tables.length; i++) {
+      var tb = tables[i];
+      var head = ((tb.tHead && tb.tHead.innerText) || tb.innerText.slice(0, 300)).toUpperCase();
+      if (head.indexOf("PICK") >= 0 && head.indexOf("PLAYER") >= 0) return tb;
+    }
+    /* some layouts use divs with role=table or a grid */
+    var cands = document.querySelectorAll("[role=table],[class*=pickHistory],[class*=pick-history],[class*=PickHistory]");
+    for (var j = 0; j < cands.length; j++) {
+      var c = cands[j], ct = (c.innerText || "").toUpperCase();
+      if (ct.indexOf("PICK") >= 0 && ct.indexOf("PLAYER") >= 0) return c;
+    }
+    return null;
+  }
+
   box.querySelector("#fgAuto").onclick = function () {
+    var tb = findPickTable();
+    if (tb) { target = tb; isTable = true; return report(); }
+    isTable = false;
     var best = null, bestN = 0, biggest = 0;
     var all = document.body.querySelectorAll("div,section,ul,ol,table,aside,main");
     for (var i = 0; i < all.length; i++) {
@@ -76,11 +100,7 @@
       if (n > MAXPICKS) continue;
       if (n > bestN || (n === bestN && best && txt.length < (best.innerText || "").length)) { bestN = n; best = el; }
     }
-    if (!best || !bestN) {
-      return say(biggest > MAXPICKS
-        ? "Only found a big list of <b>" + biggest + "</b> players - that is the available-players list, not the picks. Click <b>Pick manually</b> and click the draft-pick list."
-        : "Could not find player names on this page. Try <b>Pick manually</b>.", 1);
-    }
+    if (!best || !bestN) return say("Could not find the pick list. Open the <b>Pick History</b> tab, set the dropdown to <b>All Rounds</b>, then click <b>Find picks</b> again.", 1);
     target = best; report();
   };
 
