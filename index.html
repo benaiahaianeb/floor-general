@@ -772,6 +772,17 @@ function fgSync(text){
   const {seq} = parsePaste(text);
   if(!seq.length) return {added:0, seen:0};
   const taken = new Set(state.picks.map(p=>p.pid));
+  /* Safety valve: a live poll should add a pick or two. A huge batch means the
+     helper is reading the available-players list, which would wrongly mark the
+     whole pool as drafted. Refuse it; big catch-ups go through Paste sync,
+     which shows a reviewable preview first. */
+  const wouldAdd = seq.filter(pl => !taken.has(pl.i)).length;
+  const cap = state.picks.length === 0 ? 60 : 24;
+  if(wouldAdd > cap){
+    syncState = {on:true, at:Date.now(), seen:seq.length, rejected:wouldAdd};
+    renderSyncPill();
+    return {added:0, seen:seq.length, total:state.picks.length, rejected:wouldAdd};
+  }
   let added = 0;
   for(const pl of seq){
     if(taken.has(pl.i)) continue;
@@ -800,6 +811,13 @@ function renderSyncPill(){
   if(!syncState.on){ el.hidden = true; return; }
   el.hidden = false;
   const age = Math.round((Date.now() - syncState.at)/1000);
+  if(syncState.rejected){
+    el.textContent = `Sync blocked \u00b7 ${syncState.rejected} at once`;
+    el.className = "syncpill stale";
+    el.title = "The helper sent too many players at once - it is probably reading the available-players list. Re-select the pick panel in the helper.";
+    return;
+  }
+  el.title = "";
   el.textContent = age > 20 ? `Live sync idle ${age}s` : `Live sync \u00b7 ${state.picks.length} picks`;
   el.className = "syncpill" + (age > 20 ? " stale" : "");
 }
