@@ -420,7 +420,18 @@ function needInfo(pl,R){
   const openDed = R.slots.find(s=>s.key===pl.p && !s.player);
   if(openDed) return {mult:1, label:"Fills "+openDed.label};
   const openFlex = R.slots.find(s=>s.key==="FLEX" && !s.player && eligible("FLEX",pl.p));
-  if(openFlex) return {mult:0.97, label:"Fills FLEX"};
+  if(openFlex){
+    /* A flex slot is fungible - anyone left over can fill it. A dedicated hole
+       is not: only a WR fills WR2, only a TE fills TE. So while you still owe
+       starters at specific positions, a body that can ONLY go in flex is worth
+       less than his raw value says, because taking him leaves every one of those
+       holes still open. At 0.97 flat, a third RB looked as urgent as your first
+       receiver, which is how a roster ends up RB-heavy with empty WR slots.
+       K and D/ST are excluded - nobody fills those before the last rounds. */
+    const holes = R.slots.filter(s=>!s.player && s.key!=="FLEX" && s.key!=="SFLEX"
+                                    && s.key!=="BN" && s.key!=="K" && s.key!=="DST").length;
+    return {mult: Math.max(0.60, 0.95 - 0.09*holes), label: holes ? "Flex only" : "Fills FLEX"};
+  }
   const openSf = R.slots.find(s=>s.key==="SFLEX" && !s.player && eligible("SFLEX",pl.p));
   if(openSf) return {mult: pl.p==="QB"?0.97:0.9, label:"Fills SFLEX"};
   const have = R.mine.filter(x=>x.p===pl.p).length;
@@ -572,7 +583,7 @@ function candidateScores(){
   }
   const list = out.length ? out : spare;
   list.sort((a,b)=>b.sc-a.sc);
-  return {list, rep, R, flow, needs, supply, scarce, squeezed, window:{from:c, to}};
+  return {list, rep, R, flow, needs, supply, scarce, squeezed, mustFill, window:{from:c, to}};
 }
 
 /* ---------- reasons ---------- */
@@ -845,7 +856,23 @@ function renderRecs(ctx){
   if(c>totalPicks()){ $("recTitle").textContent="DRAFT COMPLETE"; $("recs").innerHTML=`<p class="note" style="margin:4px 0">Board closed. Export state to keep a record.</p>`; $("survive").textContent=""; return; }
   const mine = teamForPick(c)===state.slot;
   $("recTitle").textContent = mine ? "RECOMMENDED NOW — YOUR PICK" : `PLAN FOR YOUR PICK ${myNextPick() ?? "—"}`;
-  const top = ctx.list.slice(0,5);
+  /* Never show five of the same position. Even when one position genuinely
+     leads, a panel of four RBs is not a decision - it hides the trade-off the
+     pick is actually about. Rank order is preserved; at most two per position
+     are shown, so the best alternative is always visible. The endgame is
+     exempt, because there the forced position IS the answer. */
+  const top = [];
+  if(ctx.mustFill){ top.push(...ctx.list.slice(0,5)); }
+  else {
+    const per = {};
+    for(const c of ctx.list){
+      const n = per[c.pl.p] || 0;
+      if(n >= 2) continue;
+      per[c.pl.p] = n + 1;
+      top.push(c);
+      if(top.length >= 5) break;
+    }
+  }
   $("recs").innerHTML = top.map((cd,i)=>{
     const pl = cd.pl;
     const why = reasons(cd,ctx).map(r=>`<span class="${r.k}">${esc(r.t)}</span>`).join(" · ");
