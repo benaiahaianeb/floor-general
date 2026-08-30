@@ -28,7 +28,9 @@
       var m = info.match(/R\s*(\d+)\s*,\s*P\s*(\d+)/i);
       var teamEl = el.querySelector(".playerinfo__playerteam");
       var posEl = el.querySelector(".playerinfo__playerpos");
+      var owner = info.split(/\s-\s/).slice(1).join(" - ").trim();
       out.push({
+        owner: owner,
         rnd: m ? parseInt(m[1], 10) : 0,
         pk: m ? parseInt(m[2], 10) : i + 1,
         seq: i,
@@ -45,6 +47,32 @@
       return a.seq - b.seq;
     });
     return out;
+  }
+
+  /* Which of the twelve teams is HIS? ESPN answers this itself: it tags the
+     user's own column in the draft board grid with class "myTeam" - on the
+     header cell (which holds the team name) and on every pick cell in that
+     column (whose .roundPick reads "round.pickInRound", e.g. "2.8").
+     From any one of those we can recover the draft slot exactly, so the board
+     never has to be told by hand which team to call "You". */
+  function readMyTeam() {
+    var out = { name: null, rnd: 0, pk: 0, teams: 0 };
+    var hdr = document.querySelector(".draft-board-grid-header-cell.myTeam");
+    if (hdr) out.name = (hdr.textContent || "").trim();
+    out.teams = document.querySelectorAll(".draft-board-grid-header-cell").length;
+    var cells = document.querySelectorAll(".draft-board-grid-pick-cell.myTeam .roundPick");
+    for (var i = 0; i < cells.length; i++) {
+      var m = (cells[i].textContent || "").trim().match(/^(\d+)\.(\d+)$/);
+      if (m) { out.rnd = parseInt(m[1], 10); out.pk = parseInt(m[2], 10); break; }
+    }
+    /* Fallback: the sidebar names the team on every pick, so if we know the
+       name but not the column, the team's round-1 pick gives the slot. */
+    if (out.name && !out.rnd) {
+      var ps = readPicks();
+      for (var j = 0; j < ps.length; j++)
+        if (ps[j].owner === out.name) { out.rnd = ps[j].rnd; out.pk = ps[j].pk; break; }
+    }
+    return (out.name || out.rnd) ? out : null;
   }
 
   function payload(picks) {
@@ -79,8 +107,13 @@
       return picks;
     }
     var last = picks[picks.length - 1];
+    var me = readMyTeam();
     say("Reading <b>" + picks.length + "</b> picks from the sidebar.<br>" +
-        "Latest: <b>R" + last.rnd + " P" + last.pk + " - " + last.name + "</b>");
+        "Latest: <b>R" + last.rnd + " P" + last.pk + " - " + last.name + "</b>" +
+        (me ? "<br>Your team: <b>" + (me.name || "(unnamed)") + "</b>" +
+              (me.rnd ? " - slot " + (me.rnd % 2 === 1 ? me.pk : (me.teams || 12) + 1 - me.pk) : "")
+            : "<br><span style='color:#A32B2B'>Could not identify your team - open the <b>Board</b> tab once, " +
+              "or set your slot by hand on the board.</span>"));
     return picks;
   }
   box.querySelector("#fgChk").onclick = function () { report(); };
@@ -93,7 +126,7 @@
     lastSent = text;
     if (!board || board.closed) board = window.open(BOARD, "fgboard");
     if (!board) { say("Popup blocked - allow popups here, then Start sync again.", 1); return; }
-    board.postMessage({ fg: "fgsync", text: text }, "*");
+    board.postMessage({ fg: "fgsync", text: text, me: readMyTeam() }, "*");
   }
   window.addEventListener("message", function (e) {
     if (e.data && e.data.fg === "fgack") {
@@ -122,7 +155,7 @@
     box.remove(); window.__fgESPN = null;
   };
 
-  window.__fgESPN = { box: box, read: readPicks };
+  window.__fgESPN = { box: box, read: readPicks, me: readMyTeam };
   report();
   console.log("[Floor General] ready");
 })();

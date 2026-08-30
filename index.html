@@ -72,6 +72,10 @@ a:hover{text-decoration:underline}
 .pairrow.good{color:var(--success)}
 .pairrow.warn{color:var(--warning)}
 .pairrow .btn{margin-left:6px}
+.slotnotice{margin:0 16px 12px;padding:8px 12px;border:1px solid var(--success);background:var(--success-pastel);
+  color:var(--success);border-radius:3px;font-size:12px;display:flex;align-items:center;gap:10px}
+.slotnotice.bad{border-color:var(--error);background:var(--error-pastel);color:var(--error);font-weight:600}
+.slotnotice .btn{margin-left:auto}
 .early{color:var(--warning);font-size:10px;margin-left:2px}
 .psgood{color:var(--success);font-weight:600}
 .psbad{color:var(--warning);font-weight:600}
@@ -197,6 +201,7 @@ kbd{border:1px solid var(--divider);border-bottom-width:2px;border-radius:3px;pa
   </div>
 </header>
 
+<div id="slotNotice" class="slotnotice" hidden></div>
 <div class="wrap">
   <aside class="rail">
     <section class="card">
@@ -257,8 +262,11 @@ kbd{border:1px solid var(--divider);border-bottom-width:2px;border-radius:3px;pa
 <dialog id="dlgSetup">
   <div class="dhead"><h3>Draft settings</h3></div>
   <div class="dbody">
+    <div class="formrow"><label for="cfgAuto">Detect my team</label>
+      <input type="checkbox" id="cfgAuto" style="width:auto;justify-self:start">
+      <span class="note">Read my draft slot from the ESPN draft room automatically. Recommended — ESPN marks your own column, so this cannot guess wrong.</span></div>
     <div class="formrow"><label for="cfgSlot">Your draft slot</label>
-      <select id="cfgSlot"></select><span class="note">Order is randomised 1 hour before the draft — set this at 5pm on Aug 30.</span></div>
+      <select id="cfgSlot"></select><span class="note">Manual override. Changing this turns off auto-detect. <span id="cfgDetected"></span></span></div>
     <div class="formrow"><label>Lineup preset</label>
       <button class="btn small" id="presetStd">League default</button>
       <button class="btn small" id="presetSF">Superflex variant</button></div>
@@ -306,6 +314,7 @@ kbd{border:1px solid var(--divider);border-bottom-width:2px;border-radius:3px;pa
     <p><b>Room needs.</b> How many rival teams still have an open slot a position can fill. On its own that number is uninformative early — everyone needs everything — so the board only flags a squeeze when startable supply has actually fallen below demand.</p>
     <p><b>PO (playoff slate).</b> Weeks 15–17 schedule strength: 2025 fantasy points allowed by each opponent at that position, indexed so 1.00 is average and above 1.00 is generous. Last year's defence predicts this year's only weakly, so this is a tiebreaker between similar players and is weighted to move a score by only a few percent.</p>
     <p><b>K and D/ST plan.</b> The two positions get opposite advice because the evidence differs. Kicker has a genuine unanimous #1 (Brandon Aubrey, K1 at all nine ranking sources checked) whose long-range profile this league's 0.1/yd FG scoring rewards more than standard scoring does — worth taking near ADP, not worth reaching for. Defence has no consensus #1 at all: three different teams hold the top spot across sources and under a point per game separates DST1 from DST10, so the panel points you at the weeks 1–4 schedule instead of the season projection.</p>
+    <p><b>Which team is yours.</b> ESPN marks your own column in its draft board, so the helper reads your slot straight from the page and the board sets itself — no more attributing someone else's roster to you. A bar under the top bar confirms the slot, and turns red if ESPN ever disagrees with the board. You can still set the slot by hand in Settings; doing so turns auto-detect off so a later sync can't undo your choice.</p>
     <p><b>ADP.</b> The board plans against a blend of ESPN's own league ADP (70%) and FantasyFootballCalculator's (30%), because you are drafting on ESPN against people reading ESPN's rankings. The two populations diverge hard at the back of the board — ESPN drafters take Brandon Aubrey around pick 87 where the wider market has him at 138 — and a ▲ next to an ADP marks a player your room will take at least 25 picks earlier than the market would. Hover any ADP to see both numbers.</p>
     <p><b>Data.</b> 2026 consensus projections (FantasyPros, CBS) rescored to your league settings; ADP from FantasyFootballCalculator half-PPR 12-team; 2023–25 weekly stats via nflverse; 2026 byes from the released schedule. Mid-round RBs and three mid-camp veteran WR signings carry per-player FantasyPros pulls from 29 Aug, so no player inside the top 150 is running on a history-derived guess. Injury and role notes were researched the same day.</p>
   </div>
@@ -330,7 +339,8 @@ const POSCONF = {QB:1, RB:1, WR:1, TE:1, K:0.65, DST:0.65};
 
 /* ---------- state ---------- */
 const DEFAULT_SLOTS = {QB:1,RB:2,WR:2,TE:1,FLEX:2,SFLEX:0,K:1,DST:1,BN:5};
-let state = {slot: 6, slots: {...DEFAULT_SLOTS}, picks: []};
+let state = {slot: 6, slotAuto: true, slots: {...DEFAULT_SLOTS}, picks: []};
+let detected = null;   /* {name, slot} last reported by the ESPN helper */
 const store = {
   _m: null,
   get(){ try{ const v = localStorage.getItem("fg1"); return v ? JSON.parse(v) : this._m; }catch(e){ return this._m; } },
@@ -904,12 +914,12 @@ function renderBoard(){
 
 function renderAll(){
   const ctx = candidateScores();
-  renderClock(); renderRoster(ctx.R); renderByes(ctx.R); renderFlow(ctx); renderKDST(ctx); renderPairs(ctx); renderLog(); renderRecs(ctx); renderBoard(); renderSyncPill();
+  renderClock(); renderRoster(ctx.R); renderByes(ctx.R); renderFlow(ctx); renderKDST(ctx); renderPairs(ctx); renderLog(); renderRecs(ctx); renderBoard(); renderSyncPill(); renderSlotNotice();
   $("btnUndo").disabled = state.picks.length===0;
   $("meta").textContent = `${DATA.meta.scoring} — Sources: ${DATA.meta.sources}. Generated ${DATA.meta.generated}.`;
   save();
 }
-function save(){ store.set({v:1, slot:state.slot, slots:state.slots, picks:state.picks}); }
+function save(){ store.set({v:1, slot:state.slot, slotAuto:state.slotAuto, slots:state.slots, picks:state.picks}); }
 
 /* ---------- actions ---------- */
 function doPick(pid){
@@ -954,12 +964,27 @@ function fillSetup(){
   grid.innerHTML = keys.map(([k,lab])=>`<div class="formrow"><label for="cfg_${k}">${lab}</label><input id="cfg_${k}" type="number" min="0" max="8" value="${state.slots[k]}"></div>`).join("");
   keys.forEach(([k])=>{ $("cfg_"+k).addEventListener("input", ()=>{ state.slots[k]=Math.max(0,+$("cfg_"+k).value||0); $("cfgRounds").textContent=roundsText(); }); });
   $("cfgRounds").textContent = roundsText();
-  sel.onchange = ()=>{ state.slot = +sel.value; };
+  const auto = $("cfgAuto");
+  auto.checked = state.slotAuto;
+  auto.onchange = ()=>{
+    state.slotAuto = auto.checked;
+    if(state.slotAuto && detected) state.slot = detected.slot;
+    fillSetup(); renderAll();
+  };
+  /* Choosing a slot by hand is an explicit statement of intent, so it also
+     turns auto-detect off - otherwise the next sync would silently undo it. */
+  sel.onchange = ()=>{ state.slot = +sel.value; state.slotAuto = false; $("cfgAuto").checked = false; renderAll(); };
+  $("cfgDetected").textContent = detected
+    ? `ESPN reports slot ${detected.slot}${detected.name ? ` — "${detected.name}"` : ""}.`
+    : "Nothing detected yet — start the sync helper in your ESPN draft tab.";
 }
 function roundsText(){ return `${rounds()} rounds · ${totalPicks()} total picks · 12 teams, snake.`; }
 
 /* ---------- events ---------- */
 document.addEventListener("click", e=>{
+  if(e.target.id === "btnUseDetected" && detected){
+    state.slot = detected.slot; state.slotAuto = true; renderAll(); return;
+  }
   const pk = e.target.closest("[data-pick]");
   if(pk){ doPick(+pk.dataset.pick); return; }
   const th = e.target.closest("th[data-sort]");
@@ -1075,12 +1100,53 @@ function fgSync(text){
 }
 window.__fgSync = fgSync;
 
+/* ESPN tells us which column is the user's own team; the helper forwards the
+   round and pick-within-round of any of that team's cells, which pins the draft
+   slot exactly. Getting this wrong silently attributes someone else's roster to
+   you, so it is worth taking from the source rather than from memory - but it
+   stays overridable, because a wrong auto-answer is worse than no auto-answer. */
+function slotFromRoundPick(rnd, pk, teams){
+  const T = teams || N;
+  if(!rnd || !pk || pk < 1 || pk > T) return null;
+  return rnd % 2 === 1 ? pk : T + 1 - pk;
+}
+function applyDetectedSlot(me){
+  if(!me) return;
+  const slot = slotFromRoundPick(me.rnd, me.pk, me.teams);
+  if(!slot) return;
+  const changed = !detected || detected.slot !== slot || detected.name !== me.name;
+  detected = {name: me.name || null, slot};
+  if(state.slotAuto && state.slot !== slot){
+    state.slot = slot;
+    renderAll();
+  } else if(changed){
+    renderSlotNotice();
+  }
+}
+window.__fgDetect = applyDetectedSlot;
+
+/* A visible, permanent statement of who the board thinks you are - and a loud
+   one when that disagrees with ESPN. */
+function renderSlotNotice(){
+  const el = $("slotNotice"); if(!el) return;
+  if(!detected){ el.hidden = true; return; }
+  el.hidden = false;
+  const mismatch = detected.slot !== state.slot;
+  el.className = "slotnotice" + (mismatch ? " bad" : "");
+  const who = detected.name ? `"${esc(detected.name)}"` : "your team";
+  el.innerHTML = mismatch
+    ? `ESPN says ${who} drafts at slot <b>${detected.slot}</b>, but this board is set to <b>${state.slot}</b>. `
+      + `<button class="btn small" id="btnUseDetected">Use slot ${detected.slot}</button>`
+    : `Slot <b>${state.slot}</b> confirmed from ESPN${detected.name ? ` — ${who}` : ""}.`;
+}
+
 window.addEventListener("message", e => {
   const d = e.data;
   if(!d || d.fg !== "fgsync" || typeof d.text !== "string") return;
   let ok = false;
   try{ ok = new URL(e.origin).hostname.endsWith("espn.com"); }catch(err){}
   if(!ok) return;
+  applyDetectedSlot(d.me);
   const r = fgSync(d.text);
   if(e.source) e.source.postMessage({fg:"fgack", ...r}, e.origin);
 });
