@@ -102,17 +102,17 @@
   function report() {
     var picks = readPicks();
     if (!picks.length) {
-      say("Found the sidebar but <b>no picks yet</b>. That is correct before the draft starts - " +
-          "click <b>Start sync</b> and they will flow in automatically.");
+      say("Found the sidebar, <b>no picks yet</b>. That is correct before the draft starts. " +
+          "Click <b>Start sync</b> and picks will arrive on their own.");
       return picks;
     }
     var last = picks[picks.length - 1];
     var me = readMyTeam();
     say("Reading <b>" + picks.length + "</b> picks from the sidebar.<br>" +
-        "Latest: <b>R" + last.rnd + " P" + last.pk + " - " + last.name + "</b>" +
+        "Latest: <b>R" + last.rnd + " P" + last.pk + ", " + last.name + "</b>" +
         (me ? "<br>Your team: <b>" + (me.name || "(unnamed)") + "</b>" +
-              (me.rnd ? " - slot " + (me.rnd % 2 === 1 ? me.pk : (me.teams || 12) + 1 - me.pk) : "")
-            : "<br><span style='color:#A32B2B'>Could not identify your team - open the <b>Board</b> tab once, " +
+              (me.rnd ? ", slot " + (me.rnd % 2 === 1 ? me.pk : (me.teams || 12) + 1 - me.pk) : "")
+            : "<br><span style='color:#A32B2B'>Could not identify your team. Open the <b>Board</b> tab once, " +
               "or set your slot by hand on the board.</span>"));
     return picks;
   }
@@ -125,13 +125,13 @@
     if (text === lastSent) return;
     lastSent = text;
     if (!board || board.closed) board = window.open(BOARD, "fgboard");
-    if (!board) { say("Popup blocked - allow popups here, then Start sync again.", 1); return; }
+    if (!board) { say("Popup blocked. Allow popups here, then Start sync again.", 1); return; }
     board.postMessage({ fg: "fgsync", text: text, me: readMyTeam() }, "*");
   }
   window.addEventListener("message", function (e) {
     if (e.data && e.data.fg === "fgack") {
       var p = readPicks(), last = p.length ? p[p.length - 1].name : "-";
-      say("Synced - board has <b>" + e.data.total + "</b> picks. Latest: <b>" + last + "</b>.<br>Leave both tabs open.");
+      say("Synced. The board has <b>" + e.data.total + "</b> picks, latest <b>" + last + "</b>.<br>Leave both tabs open.");
     }
   });
 
@@ -141,7 +141,7 @@
     if (!board || board.closed) board = window.open(BOARD, "fgboard");
     send(); timer = setInterval(send, 2000);
     var n = readPicks().length;
-    say(n ? "Syncing every 2s - " + n + " picks so far." : "Watching for picks. Nothing drafted yet.");
+    say(n ? "Syncing every 2s. " + n + " picks so far." : "Watching for picks. Nothing drafted yet.");
   };
   box.querySelector("#fgCopy").onclick = function () {
     var t = payload(readPicks());
